@@ -1,0 +1,192 @@
+""" IP address calc
+* int to ipv4
+* ipv4 to int
+* ipv6 in progress
+
+"""
+### メモ
+## structのフォーマット文字列
+# '!' ネットワークバイトオーダー(32bit)
+# 'I' 符号なし整数(32bit, unsigned integer)
+# 'B' バイト、'4B' = 'BBBB' = [0-255, 0-255, 0-255, 0-255]
+# 'L' 符号なし整数(32bitまたは64bit, unsigned long)
+#     プラットフォームにより変わる場合もあり、NWアドレス計算では'I'を使用したほうがよい
+# 
+## rubyならこんな感じだったはず
+# [631271850].pack('N').unpack('CCCC').join('.')
+# => "37.160.113.170"
+# "37.160.113.170".split(".").map(&:to_i).pack('CCCC').unpack('N')[0]
+# => 631271850
+#
+## bit shiftで計算する場合、struct不要
+# from struct import pack, unpack
+import re
+
+def is_ipv4(ipv4):
+    """validate ipv4 format
+
+    Args:
+        ipv4 (str): ipv4 format
+
+    Returns:
+        boole: valid: True
+    """
+    ipv4_re = re.compile(r"""
+        ^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}
+        (25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$
+    """, re.VERBOSE)
+
+    if ipv4_re.match(ipv4):
+        return True
+    else:
+        return False
+
+def ipv4_size_check(ipv4_long):
+    """size chek ipv4 decimal
+
+    Args:
+        ipv4_long (int): ipv4 decimal
+
+    Returns:
+        boole: valid: True
+    """
+    if type(ipv4_long) is not int:
+        return False
+    elif 0 <= ipv4_long <= 4294967295:
+        return True
+    else:
+        return False
+
+def ipv42long(ipv4):
+    """ipv4 to int
+
+    Args:
+        ipv4 (str): ipv4 format
+
+    Returns:
+        [int]: decimal ipv4 address
+    """
+
+    if not is_ipv4(ipv4):
+        return False
+
+    ## use struck
+    # ipv4_octs = list(map(int, ipv4.split('.')))
+    # addr_pack = pack('!4B', *ipv4_octs)    
+    # return unpack('!I', addr_pack)[0]
+
+    ## use bit shift
+    # 192.168.1.10
+    # 11000000.10101000.00000001.00001010
+    # 3,232,235,786
+    #
+    # 192 << (8 * 3) = 3221225472
+    # 168 << (8 * 2) = 11010048
+    # 1   << (8 * 1) = 256
+    # 10  << (8 * 0) = 10
+    # sum 3232235786
+    #
+    # ポイント
+    # * [::-1]で分割したオクテットを逆順にして、enumurateのカウントとオクテットを合わせる
+    #   - 最初の: シーケンスの始まり,未指定なので0
+    #   - 2番名の: シーケンスの終わり、未指定なので最終要素
+    #   - -1 ステップ、ひとつづつ減らすので逆順に取得していく
+    # * 192×(2^(8 * 3)) はbitシフト 192<<24 と同じ
+    ipv4_long = sum(int(byte) << (8 * i) for i, byte in enumerate(ipv4.split(".")[::-1]))
+
+    if not ipv4_size_check(ipv4_long):
+        return False
+
+    return ipv4_long
+    ## 参考 ChatGPTに聞いてみた(2024/01/24)
+    # def ipv4_to_int(ipv4_address):
+    #     segments = ipv4_address.split('.')
+    #     if len(segments) != 4:
+    #         raise ValueError("Invalid IPv4 address format")
+    # 
+    #     # Convert segments to integers
+    #     segments = [int(segment) for segment in segments]
+    # 
+    #     # Perform the bit shifts and combine the segments
+    #     return (segments[0] << 24) | (segments[1] << 16) | (segments[2] << 8) | segments[3]
+
+
+def long2ipv4(ipv4_long):
+    """int to ipv4
+
+    Args:
+        ipv4_long (int): decimal ipv4 address
+
+    Returns:
+        [str]: ipv4 format
+    """
+    if not ipv4_size_check(ipv4_long):
+        return False
+
+    ## use struck
+    # ipv4_bin = pack('!I', ipv4_long)
+    # ipv4_array = list(unpack('!4B', ipv4_bin))
+    # ipv4 = '.'.join(map(str, ipv4_array))
+
+    ## use bit shift
+    # 192.168.1.10
+    # 11000000.10101000.00000001.00001010
+    # 3,232,235,786
+    # 
+    # (3232235530 >> 0) & 0xFF = 10
+    # (3232235530 >> 8) & 0XFF  = 0
+    # (3232235530 >> 16) & 0xFF = 168 
+    # (3232235530 >> 24) & 0XFF = 192
+    # ポイント
+    # * ビットシフトして、各オクテットをビットシフトして配列に取得
+    # * range(3, -1, -1)で第4オクテットから逆に取り出していく
+    # * map(str, xx)を使ってjoinできるようにStringに変換
+
+    ipv4 = '.'.join(map(str, [(ipv4_long >> (i * 8)) & 0xFF for i in range(3, -1, -1)]))
+
+    if not is_ipv4(ipv4):
+        return False
+
+    return ipv4
+
+def get_mask_long(cidr):
+    return (2**32 - 1) << (32 - cidr)
+
+def get_nwaddr_long(ipv4_long, cidr):
+    return ipv4_long & get_mask_long(cidr)
+
+def get_nwaddr(ipv4, cidr):
+    """"""
+
+def cidr2ipv4mask(cidr):
+    if not is_cidr(cidr):
+        return False
+
+    mask = (2**32 - 1) << (32 - cidr)
+    return f"{(mask >> 24) & 0xFF}.{(mask >> 16) & 0xFF}.{(mask >> 8) & 0xFF}.{mask & 0xFF}"
+
+def ipv4mask2cidr(ipv4_mask):
+    if not is_ipv4netmask(ipv4_mask):
+        return False
+    segments = ipv4_mask.split('.')
+    binary_str = ''.join([bin(int(segment))[2:].zfill(8) for segment in segments])
+
+    # Count the number of consecutive '1's from the start
+    cidr = binary_str.find('0')
+    return cidr if cidr != -1 else 32
+
+
+def is_cidr(cidr):
+    try:
+        if 0 <= cidr <=32:
+            return False
+    except:
+        return False
+
+def is_ipv4netmask(ipv4_mask):
+    if not is_ipv4(ipv4_mask):
+        return False
+    segments = ipv4_mask.split('.')
+    binary_str = ''.join([bin(int(segment))[2:].zfill(8) for segment in segments])
+    # 1が連続していない場合Falseを返す。
+    return '01' not in binary_str

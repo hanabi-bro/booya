@@ -5,9 +5,20 @@ def fire_and_forget(func: Callable, *args, **kwargs):
     """ fire and forget decorator thread """
     def wrapper(*args, **kwargs):
         th = Thread(target=func, args=(*args, *kwargs,), daemon=True)
+        # th = Thread(target=func, args=args, kwargs=kwargs, daemon=True)
         th.start()
         return th
     return wrapper
+
+
+# def fire_and_forget(func: Callable):
+#     """ fire and forget decorator thread """
+#     def wrapper(*args, **kwargs):
+#         th = Thread(target=func, args=args, kwargs=kwargs, daemon=True)
+#         th.start()
+#         return th
+#     return wrapper
+
 
 from asyncio import get_event_loop
 
